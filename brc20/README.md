@@ -16,10 +16,10 @@
    cp brc20/configs/brc20.transfer.sample.json brc20/configs/brc20.transfer.json
    ```
 3. 编辑上述 JSON，至少填写以下字段：
-   - `MAIN_WALLET_MNEMONIC`：助记词，脚本默认使用 Taproot (`m/86'/0'/0'/0`) 地址。
-   - `BRC20_TICK`：代币标识（必须 4 字符以内，区分大小写）。
-   - `BRC20_MINT_AMT`（mint）或 `BRC20_TRANSFER_AMT`（transfer）：本次操作的数量。
-   - `TRANSFERS`：fanout 模式下的接收地址列表；collect 模式下通过 `COLLECT_SOURCE_FILE` 指定来源助记词文件。
+    - `MAIN_WALLET_MNEMONIC`：助记词，脚本默认使用 Taproot (`m/86'/0'/0'/0`) 地址。
+    - `BRC20_TICK`：代币标识（必须 4 字符以内，区分大小写）。
+    - `BRC20_MINT_AMT`（mint）或 `BRC20_TRANSFER_AMT`（transfer）：本次操作的数量。
+    - `TRANSFERS`：fanout 模式下的接收地址列表；collect 模式下通过 `COLLECT_SOURCE_FILE` 指定来源助记词文件。
 
 ## 2. 手续费与通用配置
 
@@ -55,7 +55,7 @@ node brc20/brc20Inscribe.js
 2. `--step send`：读取 pending 文件，逐条广播 send 交易。
 3. `--step auto`：先 prepare，再按 `BRC20_TRANSFER_WAIT_CONFIRMS/TIMEOUT/POLL_INTERVAL` 的策略等待确认并自动 send。
 
-### 4.1 Fanout（默认 1->N）
+### 4.1 Fanout（默认）
 
 配置文件只需提供 `TRANSFERS`，每项为接收地址（若想为单条指定不同数量，可写成对象 `{ "address": "addr", "amt": "1000" }`）。
 
@@ -98,22 +98,26 @@ mnemonic words ... ---- 5000
 ## 5. 常见问题
 
 1. **为什么只有一笔铭刻，没有 send？**
-   - 需要在 `prepare` 之后再执行 `--step send`，或者使用 `--step auto` 等待确认后自动发送。
+    - 需要在 `prepare` 之后再执行 `--step send`，或者使用 `--step auto` 等待确认后自动发送。
 
 2. **mempool 报 `insufficient fee`？**
-   - 增大 `FEE_RATE`，或在命令行临时传入，例如：`FEE_RATE=10 node brc20/brc20Transfer.js --step auto`。
+    - 增大 `FEE_RATE`，或在命令行临时传入，例如：`FEE_RATE=10 node brc20/brc20Transfer.js --step auto`。
 
 3. **日志太多？**
-   - 所有日志都集中在 `brc20/logs/`，可定期清理或在配置中自定义 `LOG_DIR`。
+    - 所有日志都集中在 `brc20/logs/`，可定期清理或在配置中自定义 `LOG_DIR`。
 
 4. **collect 模式 send 失败？**
-   - 该模式目前仅输出铭刻结果，需要人工确认并复制 pending 记录到 fanout 模式或其他工具进行 send。
+    - 该模式目前仅输出铭刻结果，需要人工确认并复制 pending 记录到 fanout 模式或其他工具进行 send。
 
 ## 6. 辅助信息
 
 - `.env` 支持覆盖任何配置字段（优先级高于 JSON）。
 - 所有脚本均会在 dry-run 模式下提示使用随机钱包，不会广播交易。
 - 默认使用主网 Taproot 地址；如果需要测试网，请确保相关依赖与 API 改为测试网环境。
+- 需要批量生成测试钱包时，可运行：
+  ```bash
+  node brc20/createWallet.js --count 5
+  ```
+  结果会追加至 `brc20/configs/btc-wallet.txt`，格式为 `助记词---地址`。
 
 如需更多帮助，可查看 `brc20/outputs/` 下的 JSON 或 `brc20/logs/` 内的日志文件，了解每次运行的详细数据。
-
