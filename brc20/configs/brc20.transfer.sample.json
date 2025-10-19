@@ -1,0 +1,23 @@
+{
+  "MODE": "fanout",
+  "MAIN_WALLET_MNEMONIC": "请替换为12/24词助记词",
+  "BRC20_TICK": "abcde",
+  "BRC20_TRANSFER_AMT": "100000000000",
+  "FEE_RATE": 4,
+  "BRC20_REVEAL_OUTPUT_VALUE": 900,
+  "BRC20_SEND_MAX_RETRY": 3,
+  "BRC20_SEND_RETRY_DELAY": 3000,
+  "BRC20_TRANSFER_WAIT_CONFIRMS": 1,
+  "BRC20_TRANSFER_WAIT_TIMEOUT": 600000,
+  "BRC20_TRANSFER_WAIT_POLL_INTERVAL": 30000,
+  "TRANSFERS": [
+    "接收方Taproot地址",
+    "接收方Taproot地址2"
+  ],
+  "OUTPUT_DIR": "brc20/outputs",
+  "LOG_DIR": "brc20/logs",
+  "BRC20_PENDING_FILE": "transfer-pending.json",
+  "COLLECT_SOURCE_FILE": "brc20/configs/collect-sources.sample.txt",
+  "COLLECT_TARGET_ADDRESS": "归集目标Taproot地址",
+  "COLLECT_DEFAULT_AMT": "100000000000"
+}

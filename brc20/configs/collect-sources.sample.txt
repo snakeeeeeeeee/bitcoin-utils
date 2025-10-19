@@ -1,0 +1,4 @@
+# 每行一个助记词；可选地在助记词后使用"----"追加数量
+# 如未指定数量，将使用配置中的 COLLECT_DEFAULT_AMT
+mnemonic twelve words example here 1 ---- 100000000000
+mnemonic another wallet example 2

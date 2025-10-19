@@ -1,0 +1,30 @@
+{
+  "name": "rgb-mint",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.11.1",
+  "dependencies": {
+    "@noble/secp256k1": "^2.3.0",
+    "@unisat/ord-utils": "^0.4.0",
+    "@unisat/wallet-sdk": "^1.9.0",
+    "@youpaichris/logger": "^6.3.0",
+    "@youpaichris/requests": "^1.1.0",
+    "axios": "^1.11.0",
+    "bip32": "^5.0.0",
+    "bip39": "^3.1.0",
+    "control": "^0.2.3",
+    "dotenv": "^17.2.1",
+    "ecpair": "^3.0.0",
+    "https-proxy-agent": "^7.0.6",
+    "inquirer": "^12.9.0",
+    "p-limit": "^3.1.0",
+    "tiny-secp256k1": "^2.2.4"
+  }
+}
