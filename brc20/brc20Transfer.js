@@ -662,7 +662,6 @@ async function main() {
             prepareResults.push(record);
             if (!isDryRun) {
                 pendingRecords = upsertPendingRecord(pendingRecords, record);
-                persistPendingRecords(pendingRecords);
             }
         } catch (error) {
             logger.error(`转账至 ${transfer.address} 失败：${error.message}`);
@@ -684,7 +683,6 @@ async function main() {
                 record.status = 'sent';
                 sendResults.push({ ...record });
                 pendingRecords = dropPendingRecord(pendingRecords, record.ordinalId);
-                persistPendingRecords(pendingRecords);
                 fs.appendFileSync(
                     path.join(LOG_DIR, 'transfer-send.log'),
                     `${JSON.stringify({ ordinalId: record.ordinalId, sendTxId: sendInfo.sendTxId, fee: sendInfo.fee, address: record.address, amt: record.amt })}\n`,
@@ -706,6 +704,9 @@ async function main() {
     const summaryPath = path.join(OUTPUT_DIR, summaryName);
     const summaryPayload = isAutoStep ? { prepares: prepareResults, sends: sendResults } : prepareResults;
     fs.writeFileSync(summaryPath, JSON.stringify(summaryPayload, null, 2), 'utf8');
+    if (!isDryRun) {
+        persistPendingRecords(pendingRecords);
+    }
     logger.success(`脚本完成，详情参见 ${summaryPath}`);
 }
 
