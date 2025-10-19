@@ -1,5 +1,5 @@
 {
-  "name": "rgb-mint",
+  "name": "bitcoin-utils",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,7 +9,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.11.1",
   "dependencies": {
     "@noble/secp256k1": "^2.3.0",
     "@unisat/ord-utils": "^0.4.0",
