@@ -61,7 +61,7 @@ async function main() {
     ensureDir(path.dirname(outputPath));
 
     const wallets = Array.from({ length: count }, createWallet);
-    const lines = wallets.map((item) => `${item.mnemonic}---${item.address}`).join('\n');
+    const lines = wallets.map((item) => `${item.address}---${item.mnemonic}`).join('\n');
     fs.appendFileSync(outputPath, `${lines}\n`, 'utf8');
 
     console.log(`已生成 ${count} 个钱包，追加到 ${outputPath}`);

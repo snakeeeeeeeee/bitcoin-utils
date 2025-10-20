@@ -51,7 +51,7 @@ const CONTENT_TYPE = process.env.BRC20_CONTENT_TYPE || fileConfig.BRC20_CONTENT_
 const COMMIT_FEE_RATE = Number(process.env.BRC20_COMMIT_FEE_RATE || fileConfig.BRC20_COMMIT_FEE_RATE || process.env.FEE_RATE || 3);
 const REVEAL_FEE_RATE = Number(process.env.BRC20_REVEAL_FEE_RATE || fileConfig.BRC20_REVEAL_FEE_RATE || COMMIT_FEE_RATE);
 const REVEAL_OUTPUT_VALUE = Number(process.env.BRC20_REVEAL_OUTPUT_VALUE || fileConfig.BRC20_REVEAL_OUTPUT_VALUE || 546);
-const REVEAL_DELAY = Number(process.env.BRC20_REVEAL_DELAY || fileConfig.BRC20_REVEAL_DELAY || 2000);
+const REVEAL_DELAY = Number(fileConfig.BRC20_REVEAL_DELAY || 3000);
 const MAX_RETRY = Number(process.env.BRC20_MAX_RETRY || fileConfig.BRC20_MAX_RETRY || 3);
 const RETRY_DELAY = Number(process.env.BRC20_RETRY_DELAY || fileConfig.BRC20_RETRY_DELAY || 2000);
 function resolveWithDefault(value, defaultRelative) {

@@ -67,12 +67,17 @@ if (missingEnv.length && !isDryRun) {
 const MAIN_WALLET_MNEMONIC = process.env.MAIN_WALLET_MNEMONIC || fileConfig.MAIN_WALLET_MNEMONIC || '';
 const TICK = (process.env.BRC20_TICK || fileConfig.BRC20_TICK || '').trim();
 const CONTENT_TYPE = process.env.BRC20_CONTENT_TYPE || fileConfig.BRC20_CONTENT_TYPE || 'text/plain;charset=utf-8';
-const COMMIT_FEE_RATE = Number(process.env.BRC20_COMMIT_FEE_RATE || fileConfig.BRC20_COMMIT_FEE_RATE || process.env.FEE_RATE || 3);
-const REVEAL_FEE_RATE = Number(process.env.BRC20_REVEAL_FEE_RATE || fileConfig.BRC20_REVEAL_FEE_RATE || COMMIT_FEE_RATE);
-const REVEAL_OUTPUT_VALUE = Number(process.env.BRC20_REVEAL_OUTPUT_VALUE || fileConfig.BRC20_REVEAL_OUTPUT_VALUE || 546);
-const REVEAL_DELAY = Number(process.env.BRC20_REVEAL_DELAY || fileConfig.BRC20_REVEAL_DELAY || 2000);
-const MAX_RETRY = Number(process.env.BRC20_MAX_RETRY || fileConfig.BRC20_MAX_RETRY || 3);
-const RETRY_DELAY = Number(process.env.BRC20_RETRY_DELAY || fileConfig.BRC20_RETRY_DELAY || 2000);
+const FEE_RATE = Number(
+    process.env.FEE_RATE
+    || fileConfig.FEE_RATE
+    || 3
+);
+const COMMIT_FEE_RATE = FEE_RATE;
+const REVEAL_FEE_RATE = FEE_RATE;
+const REVEAL_OUTPUT_VALUE = Number(fileConfig.BRC20_REVEAL_OUTPUT_VALUE || 546);
+const REVEAL_DELAY = Number(fileConfig.BRC20_REVEAL_DELAY || 3000);
+const MAX_RETRY = Number(fileConfig.BRC20_MAX_RETRY || 3);
+const RETRY_DELAY = Number(fileConfig.BRC20_RETRY_DELAY || 3000);
 function resolveWithDefault(value, defaultRelative) {
     if (value) {
         return path.isAbsolute(value) ? value : path.resolve(value);
@@ -89,13 +94,15 @@ function resolveOptional(value) {
 
 const OUTPUT_DIR = resolveWithDefault(fileConfig.OUTPUT_DIR, 'outputs');
 const LOG_DIR = resolveWithDefault(fileConfig.LOG_DIR, 'logs');
-const SEND_FEE_RATE = Number(process.env.BRC20_SEND_FEE_RATE || fileConfig.BRC20_SEND_FEE_RATE || REVEAL_FEE_RATE || COMMIT_FEE_RATE);
+const ADDRESS_FILE = path.resolve(fileConfig.TRANSFER_ADDRESS_FILE || path.join(__dirname, 'configs/transfer-address.txt'));
+const SUCCESS_LIST_PATH = path.join(OUTPUT_DIR, 'transfer-success.txt');
+const FAIL_LIST_PATH = path.join(OUTPUT_DIR, 'transfer-fail.txt');
+const SEND_FEE_RATE = FEE_RATE;
 const SEND_MAX_RETRY = Number(process.env.BRC20_SEND_MAX_RETRY || fileConfig.BRC20_SEND_MAX_RETRY || MAX_RETRY);
 const SEND_RETRY_DELAY = Number(process.env.BRC20_SEND_RETRY_DELAY || fileConfig.BRC20_SEND_RETRY_DELAY || RETRY_DELAY);
-const WAIT_CONFIRMATIONS = Number(process.env.BRC20_TRANSFER_WAIT_CONFIRMS || fileConfig.BRC20_TRANSFER_WAIT_CONFIRMS || (isAutoStep ? 1 : 0));
-const WAIT_TIMEOUT = Number(process.env.BRC20_TRANSFER_WAIT_TIMEOUT || fileConfig.BRC20_TRANSFER_WAIT_TIMEOUT || 600000);
+const WAIT_CONFIRMATIONS = Number(fileConfig.BRC20_TRANSFER_WAIT_CONFIRMS);
+const WAIT_TIMEOUT = Number(fileConfig.BRC20_TRANSFER_WAIT_TIMEOUT || 600000);
 const WAIT_POLL_INTERVAL = Number(process.env.BRC20_TRANSFER_WAIT_POLL_INTERVAL || fileConfig.BRC20_TRANSFER_WAIT_POLL_INTERVAL || 30000);
-const TRANSFERS = Array.isArray(fileConfig.TRANSFERS) ? fileConfig.TRANSFERS : [];
 const COLLECT_SOURCE_FILE = resolveOptional(process.env.COLLECT_SOURCE_FILE || fileConfig.COLLECT_SOURCE_FILE || '');
 const COLLECT_TARGET_ADDRESS = (process.env.COLLECT_TARGET_ADDRESS || fileConfig.COLLECT_TARGET_ADDRESS || '').trim();
 const COLLECT_DEFAULT_AMT = (process.env.COLLECT_DEFAULT_AMT || fileConfig.COLLECT_DEFAULT_AMT || '').trim();
@@ -105,42 +112,47 @@ const PENDING_FILE = pendingArg ? path.resolve(pendingArg) : defaultPendingPath;
 ensureDir(OUTPUT_DIR);
 ensureDir(LOG_DIR);
 
+console.info(`WAIT_CONFIRMATIONS: ${WAIT_CONFIRMATIONS}, fileConfig.BRC20_TRANSFER_WAIT_CONFIRMS : ${fileConfig.BRC20_TRANSFER_WAIT_CONFIRMS}`)
+console.info(`FEE_RATE: ${FEE_RATE} | COMMIT_FEE_RATE: ${COMMIT_FEE_RATE} | REVEAL_FEE_RATE: ${REVEAL_FEE_RATE}`);
+
 const { LocalWallet } = wallet;
 
-function normalizeTransfers(raw) {
-    return raw
-        .map((item, idx) => {
-            if (typeof item === 'string') {
-                const address = item.trim();
-                if (!address) {
-                    logger.warn(`跳过第 ${idx + 1} 条空地址`);
-                    return null;
-                }
-                return {
-                    index: idx,
-                    address,
-                    amt: null,
-                };
-            }
+function loadTransferAddresses(filePath) {
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`找不到转账地址文件: ${filePath}`);
+    }
+    return fs
+        .readFileSync(filePath, 'utf8')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith('#'));
+}
 
-            if (item && typeof item === 'object') {
-                const address = (item.address || '').trim();
-                const amt = item.amt ? String(item.amt).trim() : null;
-                if (!address) {
-                    logger.warn(`跳过第 ${idx + 1} 条无效配置: ${JSON.stringify(item)}`);
-                    return null;
-                }
-                return {
-                    index: idx,
-                    address,
-                    amt,
-                };
-            }
+function loadAddressSet(filePath) {
+    const set = new Set();
+    if (!fs.existsSync(filePath)) {
+        return set;
+    }
+    fs.readFileSync(filePath, 'utf8')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .forEach((line) => set.add(line));
+    return set;
+}
 
-            logger.warn(`跳过第 ${idx + 1} 条无效配置: ${JSON.stringify(item)}`);
-            return null;
-        })
-        .filter(Boolean);
+function appendAddressToFile(filePath, set, address) {
+    if (!address || set.has(address)) {
+        return;
+    }
+    fs.appendFileSync(filePath, `${address}\n`, 'utf8');
+    set.add(address);
+}
+
+function buildTransfersFromAddresses(addresses, successSet) {
+    return addresses
+        .map((address, idx) => ({ index: idx, address, amt: null }))
+        .filter((item) => !successSet.has(item.address));
 }
 
 function buildPayload(amount) {
@@ -183,7 +195,7 @@ function loadCollectSources(filePath, defaultAmt) {
     });
 }
 
-function loadPendingRecords() {
+function loadPendingRecords(successFilter = new Set()) {
     if (!fs.existsSync(PENDING_FILE)) {
         return [];
     }
@@ -194,7 +206,7 @@ function loadPendingRecords() {
         }
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-            return parsed;
+            return parsed.filter((item) => item && !successFilter.has(item.address));
         }
         logger.warn(`忽略损坏的 pending 文件: ${PENDING_FILE}`);
     } catch (error) {
@@ -217,7 +229,7 @@ function dropPendingRecord(records, ordinalId) {
     return records.filter((item) => item.ordinalId !== ordinalId);
 }
 
-async function processSendQueue({ wallet, records }) {
+async function processSendQueue({ wallet, records, successSet, onSuccess, onFail }) {
     if (isDryRun) {
         throw new Error('send 步骤不支持 dry-run');
     }
@@ -228,6 +240,11 @@ async function processSendQueue({ wallet, records }) {
     for (const record of records) {
         if (!record?.revealTxId) {
             logger.warn(`跳过缺少 revealTxId 的记录: ${JSON.stringify(record)}`);
+            pending = dropPendingRecord(pending, record.ordinalId || `${record.revealTxId}i${record.revealVout ?? 0}`);
+            continue;
+        }
+        if (successSet.has(record.address)) {
+            pending = dropPendingRecord(pending, record.ordinalId || `${record.revealTxId}i${record.revealVout ?? 0}`);
             continue;
         }
         try {
@@ -243,7 +260,7 @@ async function processSendQueue({ wallet, records }) {
             };
             sendResults.push(enriched);
             pending = dropPendingRecord(pending, record.ordinalId || `${record.revealTxId}i${record.revealVout ?? 0}`);
-            persistPendingRecords(pending);
+            onSuccess?.(record.address);
             fs.appendFileSync(
                 path.join(LOG_DIR, 'transfer-send.log'),
                 `${JSON.stringify({ ordinalId: enriched.ordinalId || `${record.revealTxId}i${record.revealVout ?? 0}`, sendTxId: sendInfo.sendTxId, fee: sendInfo.fee, address: record.address, amt: record.amt })}\n`,
@@ -251,8 +268,13 @@ async function processSendQueue({ wallet, records }) {
             );
             await wait(1000);
         } catch (error) {
-            logger.error(`[${record.label || record.address}] send 失败：${error.message}`);
-            fs.appendFileSync(path.join(LOG_DIR, 'transfer-failed.log'), `${record.address || 'unknown'},${error.message}\n`, 'utf8');
+            const reason = error?.message || String(error);
+            const message = `转账至 ${record.address} 失败：${reason}`;
+            logger.error(`[${record.label || record.address}] send 失败：${reason}`);
+            onFail?.(record.address);
+            const wrapped = new Error(message);
+            wrapped.remaining = pending;
+            throw wrapped;
         }
     }
 
@@ -288,6 +310,12 @@ async function sendPreparedTransfer({ wallet, record, extraUtxos = [] }) {
 
     const ordId = record.ordinalId || `${record.revealTxId}i${record.revealVout ?? 0}`;
     const revealOutputValue = record.revealOutputValue || REVEAL_OUTPUT_VALUE;
+    logger.warn(
+        `\n>>>>>>>>>>>> send 阶段开始 <<<<<<<<<<<<\n` +
+        `目标地址: ${record.address}\n` +
+        `铭文 ID : ${ordId}`
+    );
+
     const ordUtxo = {
         txId: record.revealTxId,
         txid: record.revealTxId,
@@ -336,6 +364,7 @@ async function sendPreparedTransfer({ wallet, record, extraUtxos = [] }) {
     });
 
     const utxosForSend = [ordUtxo, ...usableFunding];
+    logger.info(`[${record.label}] send 阶段使用 ${utxosForSend.length} 枚 UTXO 构建交易`);
 
     const psbt = await createSendOrd({
         utxos: utxosForSend,
@@ -371,9 +400,14 @@ async function sendPreparedTransfer({ wallet, record, extraUtxos = [] }) {
 
     logger.success(`[${record.label}] 已广播 transfer 交易: ${sendTxId}`);
 
+
     const totalInput = utxosForSend.reduce((sum, item) => sum + (item.satoshis || item.value || 0), 0);
     const totalOutput = tx.outs.reduce((sum, out) => sum + out.value, 0);
     const fee = totalInput - totalOutput;
+    logger.warn(
+        `手续费: ${fee} sats\n` +
+        `<<<<<<<<<<<< send 阶段结束 <<<<<<<<<<<<\n`
+    );
 
     return {
         sendTxId,
@@ -409,7 +443,14 @@ async function prepareTransfer({ wallet, transfer, amount, utxo, label = '' }) {
         throw new Error(`[${label}] 可用余额不足以覆盖铭文输出`);
     }
 
-    logger.info(`[${label}] 目标 ${transfer.address}: 数量 ${amount}，预计reveal费 ~${revealFee} sats，commit输出目标 ${commitTarget} sats`);
+    logger.warn(
+        `\n============= 开始处理 ${label} =============\n` +
+        `目标地址: ${transfer.address}\n` +
+        `铭文数量: ${amount}\n` +
+        `预估 reveal 手续费: ~${revealFee} sats\n` +
+        `预估 commit 输出: ${commitTarget} sats\n` +
+        `-------------------------------------------`
+    );
 
     if (isDryRun) {
         return {
@@ -486,10 +527,10 @@ async function prepareTransfer({ wallet, transfer, amount, utxo, label = '' }) {
         changeAmount,
     });
 
-    logger.info(`[${label}] commit交易 ${commitTxId}，reveal将消耗费用 ${reveal.fee} sats（vsize=${reveal.vsize}）`);
-    if (changeAmount > 0) {
-        logger.info(`[${label}] 最终找零 ${changeAmount} sats -> ${changeAddress}`);
-    }
+    logger.info(`[${label}] commit 交易 ${commitTxId}，预计 reveal 费用 ${reveal.fee} sats（vsize=${reveal.vsize}）`);
+    // if (changeAmount > 0) {
+    //     logger.info(`[${label}] 最终找零 ${changeAmount} sats -> ${changeAddress}`);
+    // }
 
     await broadcastTransaction(commitHex);
     logger.success(`[${label}] 已广播 commit: ${commitTxId}`);
@@ -534,7 +575,14 @@ async function prepareTransfer({ wallet, transfer, amount, utxo, label = '' }) {
 
     fs.appendFileSync(path.join(LOG_DIR, 'transfer-success.log'), `${JSON.stringify(record)}\n`, 'utf8');
 
-    logger.info(`[${label}] 铭刻完成，ordinal ${ordinalId} 暂存于 ${wallet.address}`);
+    logger.success(`[${label}] 铭刻完成，ordinal ${ordinalId} 已生成`);
+    logger.warn(
+        `============= 完成 ${label} =============\n` +
+        `已生成铭文: ${ordinalId}\n` +
+        `commit tx: ${commitTxId}\n` +
+        `reveal tx: ${revealTxId}\n` +
+        `-------------------------------------------\n`
+    );
 
     return record;
 }
@@ -616,20 +664,42 @@ async function main() {
     }
 
     const globalAmt = (process.env.BRC20_TRANSFER_AMT || fileConfig.BRC20_TRANSFER_AMT || '').trim();
-    const transfers = normalizeTransfers(TRANSFERS);
-
-    let pendingRecords = loadPendingRecords();
+    const successSet = loadAddressSet(SUCCESS_LIST_PATH);
+    const failSet = loadAddressSet(FAIL_LIST_PATH);
+    let pendingRecords = loadPendingRecords(successSet);
+    const addresses = loadTransferAddresses(ADDRESS_FILE);
+    const transfers = buildTransfersFromAddresses(addresses, successSet);
+    const appendSuccessAddress = (address) => appendAddressToFile(SUCCESS_LIST_PATH, successSet, address);
+    const appendFailAddress = (address) => appendAddressToFile(FAIL_LIST_PATH, failSet, address);
 
     if (isSendStep) {
         if (!pendingRecords.length) {
             logger.warn('没有待发送的转账记录，请先执行 prepare/auto 步骤');
             return;
         }
-        const { results: sendResults } = await processSendQueue({ wallet, records: pendingRecords });
-        const summaryName = 'transfer-send-summary.json';
-        const summaryPath = path.join(OUTPUT_DIR, summaryName);
-        fs.writeFileSync(summaryPath, JSON.stringify(sendResults, null, 2), 'utf8');
-        logger.success(`send 步骤完成，详情参见 ${summaryPath}`);
+        try {
+            const { results: sendResults, remaining } = await processSendQueue({
+                wallet,
+                records: pendingRecords,
+                successSet,
+                onSuccess: appendSuccessAddress,
+                onFail: appendFailAddress,
+            });
+            pendingRecords = remaining;
+            const summaryName = 'transfer-send-summary.json';
+            const summaryPath = path.join(OUTPUT_DIR, summaryName);
+            fs.writeFileSync(summaryPath, JSON.stringify(sendResults, null, 2), 'utf8');
+            if (!isDryRun) {
+                persistPendingRecords(pendingRecords);
+            }
+            logger.success(`send 步骤完成，详情参见 ${summaryPath}`);
+        } catch (error) {
+            pendingRecords = error?.remaining || pendingRecords;
+            if (!isDryRun) {
+                persistPendingRecords(pendingRecords);
+            }
+            throw error;
+        }
         return;
     }
 
@@ -645,11 +715,14 @@ async function main() {
 
     const prepareResults = [];
     const sendResults = [];
+    let encounteredError = false;
+    let failureAddress = '';
+    let failureReason = '';
 
     for (const transfer of transfers) {
         const amount = globalAmt || transfer.amt;
         if (!amount) {
-            throw new Error(`转账至 ${transfer.address} 缺少数量：请配置 BRC20_TRANSFER_AMT 或在 TRANSFERS 项中提供 amt`);
+            throw new Error(`转账至 ${transfer.address} 缺少数量：请配置 BRC20_TRANSFER_AMT`);
         }
         const utxo = isDryRun ? null : utxos.shift();
         if (!utxo && !isDryRun) {
@@ -665,11 +738,14 @@ async function main() {
             }
         } catch (error) {
             logger.error(`转账至 ${transfer.address} 失败：${error.message}`);
-            fs.appendFileSync(path.join(LOG_DIR, 'transfer-failed.log'), `${transfer.address},${error.message}\n`, 'utf8');
             if (!isDryRun) {
-                await wait(RETRY_DELAY);
+                appendFailAddress(transfer.address);
             }
-            continue;
+            logger.warn(`!!! ${label} 失败，流程终止`);
+            encounteredError = true;
+            failureAddress = transfer.address;
+            failureReason = error.message;
+            break;
         }
 
         if (!isDryRun && isAutoStep) {
@@ -683,6 +759,7 @@ async function main() {
                 record.status = 'sent';
                 sendResults.push({ ...record });
                 pendingRecords = dropPendingRecord(pendingRecords, record.ordinalId);
+                appendSuccessAddress(record.address);
                 fs.appendFileSync(
                     path.join(LOG_DIR, 'transfer-send.log'),
                     `${JSON.stringify({ ordinalId: record.ordinalId, sendTxId: sendInfo.sendTxId, fee: sendInfo.fee, address: record.address, amt: record.amt })}\n`,
@@ -691,7 +768,12 @@ async function main() {
             } catch (error) {
                 record.status = 'prepared';
                 logger.error(`[${record.label}] 自动发送失败：${error.message}`);
-                fs.appendFileSync(path.join(LOG_DIR, 'transfer-failed.log'), `${record.address},${error.message}\n`, 'utf8');
+                appendFailAddress(record.address);
+                logger.warn(`!!! ${record.label} 自动发送失败，流程终止`);
+                encounteredError = true;
+                failureAddress = record.address;
+                failureReason = error.message;
+                break;
             }
         }
 
@@ -706,6 +788,9 @@ async function main() {
     fs.writeFileSync(summaryPath, JSON.stringify(summaryPayload, null, 2), 'utf8');
     if (!isDryRun) {
         persistPendingRecords(pendingRecords);
+    }
+    if (encounteredError) {
+        throw new Error(`转账至 ${failureAddress} 失败：${failureReason}`);
     }
     logger.success(`脚本完成，详情参见 ${summaryPath}`);
 }

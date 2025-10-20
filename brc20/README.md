@@ -15,11 +15,12 @@
    cp brc20/configs/brc20.mint.sample.json brc20/configs/brc20.mint.json
    cp brc20/configs/brc20.transfer.sample.json brc20/configs/brc20.transfer.json
    ```
-3. 编辑上述 JSON，至少填写以下字段：
+3. 编辑上述 JSON，并在 `brc20/configs/transfer-address.txt` 中按行写入接收地址；脚本会按顺序处理，运行成功的地址会记录在 `brc20/outputs/transfer-success.txt`，失败的地址写入 `brc20/outputs/transfer-fail.txt` 以便下次跳过。
+4. JSON 中至少需要填写以下字段：
     - `MAIN_WALLET_MNEMONIC`：助记词，脚本默认使用 Taproot (`m/86'/0'/0'/0`) 地址。
     - `BRC20_TICK`：代币标识（必须 4 字符以内，区分大小写）。
     - `BRC20_MINT_AMT`（mint）或 `BRC20_TRANSFER_AMT`（transfer）：本次操作的数量。
-    - `TRANSFERS`：fanout 模式下的接收地址列表；collect 模式下通过 `COLLECT_SOURCE_FILE` 指定来源助记词文件。
+    - collect 模式通过 `COLLECT_SOURCE_FILE` 指定来源助记词文件。
 
 ## 2. 手续费与通用配置
 
@@ -94,6 +95,9 @@ mnemonic words ... ---- 5000
 - 发送记录：`brc20/logs/transfer-send.log`
 - 失败记录：`brc20/logs/transfer-failed.log`
 - Pending 队列：`brc20/outputs/transfer-pending.json`
+- 地址处理记录：
+    - `brc20/outputs/transfer-success.txt` 保存已完全完成的地址；
+    - `brc20/outputs/transfer-fail.txt` 保存最近一次失败的地址，脚本遇到失败会立即停止。
 
 ## 5. 常见问题
 
@@ -118,6 +122,6 @@ mnemonic words ... ---- 5000
   ```bash
   node brc20/createWallet.js --count 5
   ```
-  结果会追加至 `brc20/configs/btc-wallet.txt`，格式为 `助记词---地址`。
+  结果会追加至 `brc20/configs/btc-wallet.txt`，格式为 `地址---助记词`。
 
 如需更多帮助，可查看 `brc20/outputs/` 下的 JSON 或 `brc20/logs/` 内的日志文件，了解每次运行的详细数据。
